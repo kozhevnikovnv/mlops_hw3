@@ -1,0 +1,5 @@
+outs:
+- md5: 2406f135025df7d75c992e70c35b0f82
+  size: 48167
+  hash: md5
+  path: banknote_auth.csv
