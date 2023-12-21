@@ -1,8 +1,11 @@
 import os
 import shutil
 import pickle
+import subprocess
+import tempfile
 
 from model import Model
+from dvc.repo import Repo
 from BankNotes import BankNote
 from fastapi import FastAPI, File, UploadFile
 
@@ -36,9 +39,33 @@ async def train_model(model_type: str,
     :param model_name: Имя модели для сохранения.
     :param file: Файл с данными для обучения.
     """
-    with open(file.filename, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
     model = Model(model_type)
+
+    # Сохраните файл во временный каталог
+    file_path = os.path.join('/app', file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Создайте экземпляр Repo в текущем каталоге
+    repo = Repo('.')
+
+    # Добавьте файл в DVC
+    repo.add(file_path)
+
+    # Отправьте изменения в удаленное хранилище
+    try:
+        repo.push([file_path])
+    except Exception as e:
+        return {"status": "Failed",
+                "message": f"Ошибка при отправке файла в S3: {str(e)}"}
+
+    # try:
+    #     subprocess.run(['dvc', 'add', file.filename], check=True)
+    #     subprocess.run(['dvc', 'push', file.filename], check=True)
+    # except subprocess.CalledProcessError as e:
+    #     return {"status": "Failed",
+    #             "message": f"Ошибка при отправке файла в S3: {str(e)}"}
+
     model.fit(file.filename)
     with open(f'{model_type}_{model_name}.pkl', 'wb') as file:
         pickle.dump(model, file)
