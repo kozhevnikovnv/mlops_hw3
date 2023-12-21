@@ -1,0 +1,7 @@
+[core]
+    remote = minio2
+['remote "minio2"']
+    url = s3://dvc-art
+    endpointurl = http://127.0.0.1:9000
+    access_key_id = minioadmin
+    secret_access_key = minioadmin
