@@ -1,8 +1,6 @@
 import os
 import shutil
 import pickle
-import subprocess
-import tempfile
 
 from model import Model
 from dvc.repo import Repo
@@ -11,6 +9,21 @@ from fastapi import FastAPI, File, UploadFile
 
 app = FastAPI()
 
+def push_file_to_s3(file_path):
+    """
+    Эта функция добавляет файл в репозиторий DVC и пытается отправить его в S3.
+    :param file_path: Путь к файлу, который нужно отправить.
+    :return: Статус операции и сообщение об ошибке, если она произошла.
+    """
+    repo = Repo('.')
+    repo.add(file_path)
+    try:
+        repo.push([file_path])
+        return {"status": "Success",
+                "message": f"Файл {file_path} успешно отправлен в S3"}
+    except Exception as e:
+        return {"status": "Failed",
+                "message": f"Ошибка при отправке файла в S3: {str(e)}"}
 
 @app.get("/")
 async def root():
@@ -41,30 +54,13 @@ async def train_model(model_type: str,
     """
     model = Model(model_type)
 
-    # Сохраните файл во временный каталог
     file_path = os.path.join('/app', file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Создайте экземпляр Repo в текущем каталоге
-    repo = Repo('.')
-
-    # Добавьте файл в DVC
-    repo.add(file_path)
-
-    # Отправьте изменения в удаленное хранилище
-    try:
-        repo.push([file_path])
-    except Exception as e:
-        return {"status": "Failed",
-                "message": f"Ошибка при отправке файла в S3: {str(e)}"}
-
-    # try:
-    #     subprocess.run(['dvc', 'add', file.filename], check=True)
-    #     subprocess.run(['dvc', 'push', file.filename], check=True)
-    # except subprocess.CalledProcessError as e:
-    #     return {"status": "Failed",
-    #             "message": f"Ошибка при отправке файла в S3: {str(e)}"}
+    response = push_file_to_s3(file_path)
+    if response["status"] == "Failed":
+        return response
 
     model.fit(file.filename)
     with open(f'{model_type}_{model_name}.pkl', 'wb') as file:
